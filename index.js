@@ -2,11 +2,9 @@
     let isNode = typeof module !== undefined && typeof module.exports !== undefined
 
     if (isNode) {
-        // const signet = require('./signet-types');
-
         module.exports = moduleFactory();
     } else if (typeof signet === 'object') {
-        window.quickspec = moduleFactory();
+        window.quickspecFactory = moduleFactory();
     } else {
         throw new Error('The module quickspec requires Signet to run.');
     }

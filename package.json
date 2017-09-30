@@ -17,10 +17,7 @@
     "url": "https://github.com/mstead/quickspec/issues"
   },
   "homepage": "https://github.com/mstead/quickspec#readme",
-  "dependencies": {
-    "matchlight": "^1.2.0",
-    "signet": "^6.4.1"
-  },
+  "dependencies": {},
   "engines": {
     "node": ">=6.0.0"
   },
