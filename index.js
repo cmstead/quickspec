@@ -28,9 +28,14 @@
         }
 
         function buildFailureMessage(specRecord, expectedResult, actualResult) {
-            return 'Test \'' + getSpecName(specRecord) + '\' failure in spec: \n' +
-                JSON.stringify(specRecord.setupValues, null, 4) + '\n\n' +
-                'Expected result to be ' + expectedResult + ', but got ' + actualResult;
+            const expectedOutput = specRecord.expectedResult
+            const message = 'Test \'' + getSpecName(specRecord) + '\' failure in spec: \n' +
+                JSON.stringify(specRecord.setupValues, null, 4) + '\n\n';
+
+            return message +
+                (typeof expectedOutput === 'undefined'
+                    ? 'Theorem failed, got result: ' + actualResult
+                    : 'Expected result to be ' + expectedOutput + ', but got ' + actualResult);
         }
 
         function logStatus(status, message) {
@@ -40,7 +45,7 @@
         }
 
         function compareObjects(expectedResult, actualResult) {
-            let objectsOk = actualResult !== null 
+            let objectsOk = actualResult !== null
                 && typeof expectedResult === typeof actualResult;
 
             const expectedKeys = Object.keys(expectedResult);
@@ -49,17 +54,17 @@
             objectsOk = objectsOk && expectedKeys.length === actualKeys.length;
 
             return expectedKeys.reduce(function (result, key) {
-                return objectsOk && compareResults(expectedResult[key], actualResult[key]);
+                return objectsOk && compareValues(expectedResult[key], actualResult[key]);
             }, objectsOk);
         }
 
-        function compareResults(expectedResult, actualResult) {
+        function compareValues(expectedResult, actualResult) {
             return typeof expectedResult !== 'object' || expectedResult === null
                 ? expectedResult === actualResult
                 : compareObjects(expectedResult, actualResult);
         }
 
-        function logResultStatus(specRecord, testResultOk) {
+        function logResultStatus(testResultOk, specRecord) {
             const status = testResultOk ? 'success' : 'failure';
             const message = testResultOk
                 ? `Finished running '${getSpecName(specRecord)}' successfully`
@@ -74,41 +79,67 @@
             }
         }
 
-        const throwOnFailureBuilder = (specRecord, theorem) => (actualResult) => {
-            const expectedResult = theorem(specRecord.setupValues);
-            const testResultOk = compareResults(expectedResult, actualResult);
+        const resolveTestResult = (specRecord, theorem, actualResult) => {
+            const testResultOk = theorem(specRecord.setupValues, actualResult);
 
-            logResultStatus(specRecord, testResultOk);
-            throwOnFailure(testResultOk, specRecord, expectedResult, actualResult);
+            logResultStatus(testResultOk, specRecord);
+            throwOnFailure(testResultOk, specRecord, null, actualResult);
         }
 
-        const always = (value) => () => value;
+        const equals = (a) => (_, b) => compareValues(a, b);
+        const first = (values) => values[0];
+        const rest = (values) => values.slice(1);
 
-        function runVerification(testRunner, specSet, theorem) {
-            specSet.forEach(function (specRecord) {
-                const localTheorem = typeof theorem === 'function' ? theorem : always(specRecord.expectedResult);
-                const resolveTestResult = throwOnFailureBuilder(specRecord, localTheorem);
+        const runAsyncVerification = (done) => (testRunner, specSet, theorem) => {
+            (function verifyAndRecur(specRecord, remainingSpecs) {
+                const localTheorem = typeof theorem === 'function' ? theorem : equals(specRecord.expectedResult);
 
-                testRunner(specRecord.setupValues, resolveTestResult);
-            });
+                function nextOrComplete(actualResult) {
+                    resolveTestResult(specRecord, localTheorem, actualResult);
+
+                    if (remainingSpecs.length > 0) {
+                        verifyAndRecur(first(remainingSpecs), rest(remainingSpecs));
+                    } else {
+                        done();
+                    }
+                }
+
+                testRunner(specRecord.setupValues, nextOrComplete);
+            })(first(specSet), rest(specSet));
         }
 
-
-        const verifyWithTheorem = (testRunner) => (theorem) => {
+        const buildVerifier = (done) => (testRunner) => (theorem) => {
             return {
-                over: (specSet) => runVerification(testRunner, specSet, theorem)                
+                over: (specSet) => runAsyncVerification(done)(testRunner, specSet, theorem)
             }
         }
 
+        function noop() { }
+
         function verify(testRunner) {
 
-            const nextActions = verifyWithTheorem(testRunner)(null);
-            nextActions.withTheorem = verifyWithTheorem(testRunner);
+            const nextActions = buildVerifier(noop)(testRunner)(null);
+            nextActions.withTheorem = buildVerifier(noop)(testRunner);
 
             return nextActions;
         }
 
+        function asyncVerify(done) {
+            function verify(testRunner) {
+                const nextActions = buildVerifier(done)(testRunner)(null);
+                nextActions.withTheorem = buildVerifier(done)(testRunner);
+
+                return nextActions;
+            }
+
+            return {
+                verify: verify
+            }
+        }
+
         return {
+            async: asyncVerify,
+            compareValues: compareValues,
             verify: verify
         };
     }

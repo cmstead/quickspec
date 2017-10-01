@@ -122,7 +122,7 @@ it('should multiply values correctly according to our spec', function () {
         }
     ];
 
-    const multiplyTheorem = ({ a, b }) => return a * b;
+    const multiplyTheorem = ({ a, b }, actualResult) => (a * b) === actualResult;
     const testMultiply = ({ a, b }, verify) => verify(multiply(a)(b));
 
     quickspec
@@ -131,3 +131,85 @@ it('should multiply values correctly according to our spec', function () {
         .over(specSet);
 });
 ```
+
+### Async Testing ###
+
+Tests can be run asyncronously.  The API simply requires an async call first.  See examples below:
+
+#### Async Tests with Expected Value ####
+
+```
+it('should support async tests', function (done) {
+
+    const verifyAsyncAdd = ({ value1, value2 }, verify) => {
+        const verifyOnDone = (error, result) => verify(result);
+        asyncAdd(value1, value2, verifyOnDone);
+    };
+
+    const specSet = [
+        {
+            name: 'additive identity',
+            setupValues: { value1: 1, value2: 0 },
+            expectedResult: 1
+        },
+        {
+            name: 'add two numbers',
+            setupValues: { value1: 1, value2: 2 },
+            expectedResult: 3
+        }
+    ];
+
+    quickspec
+        .async(done)
+        .verify(verifyAsyncAdd)
+        .over(specSet);
+});
+```
+
+#### Async Tests with Theorem ####
+
+```
+it('should support async tests with theorem', function (done) {
+
+    function verifyAsyncAdd ({ value1, value2 }, verify) {
+        const verifyOnDone = (error, result) => verify(result);
+        asyncAdd(value1, value2, verifyOnDone);
+    };
+
+    function addTheorem({ value1, value2 }, actualResult) {
+        return (value1 + value2) === actualResult;
+    }
+
+    const specSet = [
+        {
+            name: 'additive identity',
+            setupValues: { value1: 1, value2: 0 }
+        },
+        {
+            name: 'add two numbers',
+            setupValues: { value1: 1, value2: 2 }
+        },
+        {
+            name: 'add a positive and negative number',
+            setupValues: { value1: 3, value2: -7 }
+        }
+    ];
+
+    quickspec
+        .async(done)
+        .verify(verifyAsyncAdd)
+        .withTheorem(addTheorem)
+        .over(specSet);
+});
+```
+
+## Changelog ##
+
+### 2.0.0 ###
+
+- Added async endpoints
+- Revised theorem behavior
+
+### 1.0.0 ###
+
+- Initial release
